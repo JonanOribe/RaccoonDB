@@ -1,0 +1,12 @@
+{
+	"Name": "Starr",
+	"Age": 73,
+	"Contact": "818-377-3109",
+	"Company": "Vimbo",
+	"Address": {
+		"City": "Texas",
+		"State": "Colorado",
+		"Country": "USA",
+		"Pincode": 420111
+	}
+}

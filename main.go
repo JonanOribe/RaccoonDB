@@ -3,17 +3,18 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"io/ioutil"
-	"sync"
-	"github.com/jcelliott/lumber"
+	"os"
 	"path/filepath"
+	"sync"
+
+	"github.com/jcelliott/lumber"
 )
 
-const Version="1.0.1"
+const Version = "1.0.1"
 
 type (
-	Logger interface{
+	Logger interface {
 		Fatal(string, ...interface{})
 		Error(string, ...interface{})
 		Warn(string, ...interface{})
@@ -21,114 +22,114 @@ type (
 		Debug(string, ...interface{})
 		Trace(string, ...interface{})
 	}
-	Driver struct{
-		mutex sync.Mutex
+	Driver struct {
+		mutex   sync.Mutex
 		mutexes map[string]*sync.Mutex
-		dir string
-		log Logger
+		dir     string
+		log     Logger
 	}
 )
 
-type Options struct{
+type Options struct {
 	Logger
 }
 
-func New(dir string, options *Options)(*Driver, error){
-dir = filepath.Clean(dir)
-opts := Options{}
+func New(dir string, options *Options) (*Driver, error) {
+	dir = filepath.Clean(dir)
+	opts := Options{}
 
-if options != nill{
-	opts = *options
+	if options != nil {
+		opts = *options
+	}
+
+	if opts.Logger == nil {
+		opts.Logger = lumber.NewConsoleLogger((lumber.INFO))
+	}
+
+	driver := Driver{
+		dir:     dir,
+		mutexes: make(map[string]*sync.Mutex),
+		log:     opts.Logger,
+	}
+
+	if _, err := os.Stat(dir); err == nil {
+		opts.Logger.Debug("Using '%s' (database alredy exists)\n", dir)
+		return &driver, nil
+	}
+
+	opts.Logger.Debug("Creating the database at '%s'...\n", dir)
+	return &driver, os.MkdirAll(dir, 0755)
+
 }
 
-if(opts.Logger == nil){
-	opts.Logger = lumber.NewConsoleLogger((lumber.INFO))
-}
+func (d *Driver) Write(collection, resource string, v interface{}) error {
 
-driver := Driver{
-	dir: dir,
-	mutexes: make(map[string]*sync.Mutex),
-	log: opts.Logger,
-}
-
-if _,err := os.Stat(dir); err == nil{
-	opts.Logger.Debug("Using '%s' (database alredy exists)\n",dir)
-	return &driver, nil
-}
-
-opts.Logger.Debug("Creating the database at '%s'...\n",dir)
-return &driver, os.MkdirAll(dir,0755)
-
-}
-
-func (d *Driver) Write(collection, resource string,v interface{}) error{
-
-	if collection == ""{
+	if collection == "" {
 		return fmt.Errorf("Missing collection - no place to save record!")
 	}
 
-	if resource == ""{
+	if resource == "" {
 		return fmt.Errorf("Missing resource - unable to save record (no name)!")
 	}
 
-	mutex:= g.getOrCreateMutex(collection)
+	mutex := d.getOrCreateMutex(collection)
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	dir := filepath.Join(d.dir,collection)
+	dir := filepath.Join(d.dir, collection)
 	fnlPath := filepath.Join(dir, resource+".json")
 	tmpPath := fnlPath + ".tmp"
 
-	if err := os.MkdirAll(dir,0755);err != nil{
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
 	b, err := json.MarshalIndent(v, "", "\t")
 
-	if err != nil{
+	if err != nil {
 		return err
 	}
 
-	b = append(b,byte('\n'))
+	b = append(b, byte('\n'))
 
-	if err := ioutil.WriteFile(tmpPath, b, 0644);err != nil{
+	if err := ioutil.WriteFile(tmpPath, b, 0644); err != nil {
 		return err
 	}
 
-	return os.Rename(tmpPath,fnlPath)
+	return os.Rename(tmpPath, fnlPath)
 }
 
-func (d *Driver) Read(collection, resource string, v interface{}) error{
-	if collection == ""{
+func (d *Driver) Read(collection, resource string, v interface{}) error {
+	if collection == "" {
 		return fmt.Errorf("Missing collection - unable to read!")
 	}
-	
-	if resource == ""{
+
+	if resource == "" {
 		return fmt.Errorf("Missing resource - unable to read record (no name)!")
 	}
 
-	record := filepath.Join(d.dir,collection, resource)
+	record := filepath.Join(d.dir, collection, resource)
 
-	if _,err := stat(record); err != nil{
+	if _, err := stat(record); err != nil {
 		return err
 	}
 
 	b, err := ioutil.ReadFile(record + ".json")
 
-	if err != nil{
+	if err != nil {
 		return err
 	}
 
-	return json.Unmarshal(b,&v)
+	return json.Unmarshal(b, &v)
 }
 
-func (d *Driver) ReadAll(collection string)([]string, error){
+func (d *Driver) ReadAll(collection string) ([]string, error) {
 	if collection == "" {
 		return nil, fmt.Errorf("Missing collection - unable to read!")
 	}
-	dir := filepath.Join(d.dir,collection)
+	dir := filepath.Join(d.dir, collection)
 
-	if _,err := stat(dir);err != nil{
+	if _, err := stat(dir); err != nil {
 		return nil, err
 	}
 
@@ -136,9 +137,9 @@ func (d *Driver) ReadAll(collection string)([]string, error){
 
 	var records []string
 
-	for _, file := range files{
-		b, err := iouioutil.ReadFile(filepath.Join(dir, file.Name()))
-		if err != nil{
+	for _, file := range files {
+		b, err := ioutil.ReadFile(filepath.Join(dir, file.Name()))
+		if err != nil {
 			return nil, err
 		}
 
@@ -148,16 +149,33 @@ func (d *Driver) ReadAll(collection string)([]string, error){
 	return records, nil
 }
 
-func (d *Driver) Delete() error{
+func (d *Driver) Delete(collection, resource string) error {
 
+	path := filepath.Join(collection, resource)
+	mutex := d.getOrCreateMutex(collection)
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	dir := filepath.Join(d.dir, path)
+
+	switch fi, err := stat(dir); {
+	case fi == nil, err != nil:
+		return fmt.Errorf("Unable to find file or directory named %v\n", path)
+	case fi.Mode().IsDir():
+		return os.RemoveAll(dir)
+	case fi.Mode().IsRegular():
+		return os.RemoveAll(dir + ".json")
+	}
+
+	return nil
 }
 
-func (d *Driver) getOrCreateMutex(collection string) *sync.Mutex{
+func (d *Driver) getOrCreateMutex(collection string) *sync.Mutex {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 	m, ok := d.mutexes[collection]
 
-	if !ok{
+	if !ok {
 		m = &sync.Mutex{}
 		d.mutexes[collection] = m
 	}
@@ -165,8 +183,8 @@ func (d *Driver) getOrCreateMutex(collection string) *sync.Mutex{
 	return m
 }
 
-func stat(path string)(fi os.FileInfo, err error){
-	if fi, err = os.Stat(path);os.IsNotExist(err){
+func stat(path string) (fi os.FileInfo, err error) {
+	if fi, err = os.Stat(path); os.IsNotExist(err) {
 		fi, err = os.Stat(path + ".json")
 	}
 	return
@@ -195,61 +213,20 @@ func main() {
 	}
 
 	employees := []User{
-		{
-			"Name": "Eveleen",
-			"Agge": 34,
-			"Contact": "947-447-5688",
-			"Company": "Jabbersphere",
-			Address{"San Francisco","Central","USA","420029"}
-		  }, {
-			"Name": "Winslow",
-			"Agge": 66,
-			"Contact": "420-607-1115",
-			"Company": "Gabvine",
-			Address{"San Francisco","Central","USA","420029"}
-		  }, {
-			"Name": "Nellie",
-			"Agge": 47,
-			"Contact": "689-843-4027",
-			"Company": "Wikizz",
-			Address{"San Francisco","Central","USA","420029"}
-		  }, {
-			"Name": "Neils",
-			"Agge": 81,
-			"Contact": "364-555-9387",
-			"Company": "Twitterlist",
-			Address{"Texas","Colorado","USA","420111"}
-		  }, {
-			"Name": "Doro",
-			"Agge": 25,
-			"Contact": "411-155-7706",
-			"Company": "Ainyx",
-			Address{"New York","New York City","USA","420035"}
-		  }, {
-			"Name": "Starr",
-			"Agge": 73,
-			"Contact": "818-377-3109",
-			"Company": "Vimbo",
-			Address{"Texas","Colorado","USA","420111"}
-		  }, {
-			"Name": "Kaitlin",
-			"Agge": 83,
-			"Contact": "609-985-9276",
-			"Company": "Gevee",
-			Address{"Texas","Colorado","USA","420111"}
-		  }, {
-			"Name": "Melissa",
-			"Agge": 77,
-			"Contact": "742-655-9010",
-			"Company": "JumpXS",
-			Address{"New York","New York City","USA","420035"}
-		  },
+		{"Eveleen", "34", "947-447-5688", "Jabbersphere", Address{"San Francisco", "Central", "USA", "420029"}},
+		{"Winslow", "66", "420-607-1115", "Gabvine", Address{"San Francisco", "Central", "USA", "420029"}},
+		{"Nellie", "47", "689-843-4027", "Wikizz", Address{"San Francisco", "Central", "USA", "420029"}},
+		{"Neils", "81", "364-555-9387", "Twitterlist", Address{"Texas", "Colorado", "USA", "420111"}},
+		{"Doro", "25", "411-155-7706", "Ainyx", Address{"New York", "New York City", "USA", "420035"}},
+		{"Starr", "73", "818-377-3109", "Vimbo", Address{"Texas", "Colorado", "USA", "420111"}},
+		{"Kaitlin", "83", "609-985-9276", "Gevee", Address{"Texas", "Colorado", "USA", "420111"}},
+		{"Melissa", "77", "742-655-9010", "JumpXS", Address{"New York", "New York City", "USA", "420035"}},
 	}
 
-	for _, value := range employees{
+	for _, value := range employees {
 		db.Write("users", value.Name, User{
-			Name: value.Name,
-			Age: value.Age,
+			Name:    value.Name,
+			Age:     value.Age,
 			Contact: value.Contact,
 			Company: value.Company,
 			Address: value.Address,
@@ -262,15 +239,25 @@ func main() {
 	}
 	fmt.Println(records)
 
-	allusers := []Users{}
+	allusers := []User{}
 
-	for _, f := range records{
+	for _, f := range records {
 		employeeFound := User{}
-		if err := json.Unmarshal([]byte(f), &employeeFound);err != nil{
-			fmt.Println("Error ",err)
+		if err := json.Unmarshal([]byte(f), &employeeFound); err != nil {
+			fmt.Println("Error ", err)
 		}
 		allusers = append(allusers, employeeFound)
 	}
-	
+
 	fmt.Println((allusers))
+
+	/*
+		if err := db.Delete("user","john"); err != nil {
+			fmr.Println("Error ",err)
+		}
+
+		if err := db.Delete("user",""); err != nil {
+			fmr.Println("Error ",err)
+		}
+	*/
 }

@@ -1,0 +1,12 @@
+{
+	"Name": "Neils",
+	"Age": 81,
+	"Contact": "364-555-9387",
+	"Company": "Twitterlist",
+	"Address": {
+		"City": "Texas",
+		"State": "Colorado",
+		"Country": "USA",
+		"Pincode": 420111
+	}
+}

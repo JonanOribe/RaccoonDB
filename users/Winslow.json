@@ -1,0 +1,12 @@
+{
+	"Name": "Winslow",
+	"Age": 66,
+	"Contact": "420-607-1115",
+	"Company": "Gabvine",
+	"Address": {
+		"City": "San Francisco",
+		"State": "Central",
+		"Country": "USA",
+		"Pincode": 420029
+	}
+}

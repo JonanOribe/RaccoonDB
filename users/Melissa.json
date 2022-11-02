@@ -1,0 +1,12 @@
+{
+	"Name": "Melissa",
+	"Age": 77,
+	"Contact": "742-655-9010",
+	"Company": "JumpXS",
+	"Address": {
+		"City": "New York",
+		"State": "New York City",
+		"Country": "USA",
+		"Pincode": 420035
+	}
+}
