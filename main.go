@@ -6,9 +6,64 @@ import (
 	"os"
 	"sync"
 	"github.com/jcelliott/lumber"
+	"path/filepath"
 )
 
 const Version="1.0.1"
+
+type (
+	Logger interface{
+		Fatal(string, ...interface{})
+		Error(string, ...interface{})
+		Warn(string, ...interface{})
+		Info(string, ...interface{})
+		Debug(string, ...interface{})
+		Trace(string, ...interface{})
+	}
+	Driver struct{
+		mutex sync.Mutex
+		mutexes map[string]*sync.Mutex
+		dir string
+		log Logger
+	}
+)
+
+type Options struct{
+	Logger
+}
+
+func New(dir string, options *Options)(*Driver, error){
+dir = filepath.Clean(dir)
+opts := Options{}
+
+if options != nill{
+	opts = *options
+}
+
+if(opts.Logger == nil){
+	opts.Logger = lumber.NewConsoleLogger((lumber.INFO))
+}
+}
+
+func (d *Driver) Write() error{
+
+}
+
+func (d *Driver) Read() error{
+
+}
+
+func (d *Driver) ReadAll(){
+
+}
+
+func (d *Driver) Delete() error{
+
+}
+
+func (d *Driver) getOrCreateMutex() *sync.Mutex{
+
+}
 
 type Address struct {
 	City    string
