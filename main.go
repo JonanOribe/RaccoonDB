@@ -97,8 +97,28 @@ if err := ioutil.WriteFile(tmpPath, b, 0644);err != nil{
 
 }
 
-func (d *Driver) Read() error{
+func (d *Driver) Read(collection, resource string, v interface{}) error{
+	if collection == ""{
+		return fmt.Errorf("Missing collection - no place to save record!")
+	}
+	
+	if resource == ""{
+		return fmt.Errorf("Missing resource - unable to save record (no name)!")
+	}
 
+	record := filepath.Join(d.dir,collection, resource)
+
+	if _,err :=stat(record); err != nil{
+		return err
+	}
+
+	b, err := ioutil.ReadFile(record + ".json")
+
+	if err != nil{
+		return err
+	}
+
+	return json.Unmarshal(b,&v)
 }
 
 func (d *Driver) ReadAll(){
@@ -109,8 +129,17 @@ func (d *Driver) Delete() error{
 
 }
 
-func (d *Driver) getOrCreateMutex() *sync.Mutex{
+func (d *Driver) getOrCreateMutex(collection string) *sync.Mutex{
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+	m, ok := d.mutexes[collection]
 
+	if !ok{
+		m = &sync.Mutex{}
+		d.mutexes[collection] = m
+	}
+
+	return m
 }
 
 func stat(path string)(fi os.FileInfo, err error){
