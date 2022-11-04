@@ -1,4 +1,4 @@
-module github.com/akhil/golang-database
+module github.com/JonanOribe/raccoon-db
 
 go 1.18
 
